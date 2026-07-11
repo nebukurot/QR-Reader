@@ -4,7 +4,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>かんたんQRリーダー</title>
-    <!-- QRコード解析ライブラリ -->
+    
+    <!-- ホーム画面用アイコンとPWA設定の読み込み -->
+    <link rel="apple-touch-icon" href="icon.png">
+    <link rel="manifest" href="manifest.json">
+    
     <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
     <style>
         body {
@@ -18,7 +22,6 @@
             align-items: center;
         }
 
-        /* 高齢者向けの大きくて見やすい案内 */
         #message-box {
             width: 100%;
             background-color: #ffeb3b;
@@ -46,7 +49,6 @@
             object-fit: cover;
         }
 
-        /* 狙いを定めやすくするための赤いガイド枠 */
         #scan-frame {
             position: absolute;
             border: 4px solid #00ff00;
@@ -68,78 +70,111 @@
 </head>
 <body>
 
-    <div id="message-box">しかく のなかに QRコードを うつしてね</div>
+    <!-- ご要望に合わせてメッセージを変更しました -->
+    <div id="message-box">四角 のなかに QRコードを 写してね</div>
     
     <div id="video-container">
-        <div id="loading">カメラを じゅんび中...</div>
-        <video id="video" playsinline></video>
+        <div id="loading">カメラを 準備中...</div>
+        <video id="video" autoplay muted playsinline></video>
         <div id="scan-frame"></div>
     </div>
 
     <canvas id="canvas" style="display:none;"></canvas>
 
-<script>
-    const video = document.getElementById('video');
-    const canvas = document.getElementById('canvas');
-    const ctx = canvas.getContext('2d');
-    const loading = document.getElementById('loading');
-    let isScanning = true;
+    <script>
+        const video = document.getElementById('video');
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        const loading = document.getElementById('loading');
+        let isScanning = true;
 
-    // カメラの起動設定（より柔軟な指定に変更しました）
-    const constraints = {
-        video: {
-            // 基本は背面カメラを最優先する（強要はしない設定に変更）
-            facingMode: "environment",
-            // スマホでピントが合いやすいように解像度の目安を指定
-            width: { ideal: 1280 },
-            height: { ideal: 720 }
-        }
-    };
-
-    navigator.mediaDevices.getUserMedia(constraints)
-        .then(function(stream) {
-            video.srcObject = stream;
-            video.setAttribute("playsinline", true); // iOS（Safari）対策
-            video.play();
-            requestAnimationFrame(tick);
-        })
-        .catch(function(err) {
-            console.error("カメラ起動エラー: ", err);
-            // エラー時の案内を、高齢者の方でも分かりやすい言葉にしました
-            alert("カメラがうごきませんでした。\n「カメラの利用を許可（きょか）」するか、画面をもう一度開きなおしてみてください。");
-        });
-
-    function tick() {
-        if (video.readyState === video.HAVE_ENOUGH_DATA && isScanning) {
-            loading.style.display = "none";
-            
-            canvas.height = video.videoHeight;
-            canvas.width = video.videoWidth;
-            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-            
-            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-            const code = jsQR(imageData.data, imageData.width, imageData.height, {
-                inversionAttempts: "attemptBoth",
-            });
-
-            if (code) {
-                isScanning = false; 
+        // 心地よい「ピピッ」という音を鳴らす関数
+        function playBeep() {
+            try {
+                const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
                 
-                if (navigator.vibrate) {
-                    navigator.vibrate(200);
+                function playNote(freq, startTime, duration) {
+                    const oscillator = audioCtx.createOscillator();
+                    const gainNode = audioCtx.createGain();
+                    
+                    oscillator.type = 'sine'; // 耳に優しい丸い音
+                    oscillator.frequency.value = freq;
+                    
+                    gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime + startTime);
+                    gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + startTime + duration);
+                    
+                    oscillator.connect(gainNode);
+                    gainNode.connect(audioCtx.destination);
+                    
+                    oscillator.start(audioCtx.currentTime + startTime);
+                    oscillator.stop(audioCtx.currentTime + startTime + duration);
                 }
 
-                if (code.data.startsWith("http://") || code.data.startsWith("https://")) {
-                    window.location.href = code.data;
-                } else {
-                    alert("読み取った内容:\n" + code.data);
-                    setTimeout(() => { isScanning = true; }, 2000);
-                }
-                return;
+                // ピ・ピッ と2回鳴らす
+                playNote(880, 0, 0.1);    
+                playNote(1046.5, 0.15, 0.15); 
+            } catch(e) {
+                console.log("音が鳴らせませんでした", e);
             }
         }
-        requestAnimationFrame(tick);
-    }
-</script>    
+
+        const constraints = {
+            video: {
+                facingMode: "environment",
+                width: { ideal: 1280 },
+                height: { ideal: 720 }
+            }
+        };
+
+        navigator.mediaDevices.getUserMedia(constraints)
+            .then(function(stream) {
+                video.srcObject = stream;
+                video.setAttribute("playsinline", true);
+                video.play();
+                requestAnimationFrame(tick);
+            })
+            .catch(function(err) {
+                alert("カメラがうごきませんでした。\n「カメラの利用を許可（きょか）」するか、画面をもう一度開きなおしてみてください。");
+            });
+
+        function tick() {
+            if (video.readyState === video.HAVE_ENOUGH_DATA && isScanning) {
+                loading.style.display = "none";
+                
+                canvas.height = video.videoHeight;
+                canvas.width = video.videoWidth;
+                ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                
+                const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                const code = jsQR(imageData.data, imageData.width, imageData.height, {
+                    inversionAttempts: "attemptBoth",
+                });
+
+                if (code) {
+                    isScanning = false; 
+                    
+                    if (navigator.vibrate) {
+                        navigator.vibrate(200);
+                    }
+
+                    // ピピッと音を鳴らす
+                    playBeep();
+
+                    // 音が聞こえるように、0.6秒待ってからページを開く
+                    setTimeout(() => {
+                        if (code.data.startsWith("http://") || code.data.startsWith("https://")) {
+                            window.location.href = code.data;
+                        } else {
+                            alert("読み取った内容:\n" + code.data);
+                            isScanning = true;
+                        }
+                    }, 600);
+                    
+                    return;
+                }
+            }
+            requestAnimationFrame(tick);
+        }
+    </script>
 </body>
 </html>
