@@ -150,7 +150,8 @@
                     inversionAttempts: "attemptBoth",
                 });
 
-                if (code) {
+                // QRコードが検出され、かつ中身のデータが空欄ではない場合のみ成功とする
+                if (code && code.data.trim() !== "") {
                     isScanning = false; 
                     
                     if (navigator.vibrate) {
