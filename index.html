@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>かんたんQRリーダー</title>
+    <!-- QRコード解析ライブラリ -->
+    <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #111;
+            font-family: 'Helvetica Neue', Arial, sans-serif;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        /* 高齢者向けの大きくて見やすい案内 */
+        #message-box {
+            width: 100%;
+            background-color: #ffeb3b;
+            color: #000;
+            text-align: center;
+            padding: 15px 0;
+            font-size: 22px;
+            font-weight: bold;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+            z-index: 10;
+        }
+
+        #video-container {
+            position: relative;
+            width: 100%;
+            height: calc(100vh - 60px);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        /* 狙いを定めやすくするための赤いガイド枠 */
+        #scan-frame {
+            position: absolute;
+            border: 4px solid #00ff00;
+            width: 250px;
+            height: 250px;
+            box-sizing: border-box;
+            border-radius: 10px;
+            box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.5);
+            pointer-events: none;
+        }
+
+        #loading {
+            position: absolute;
+            color: white;
+            font-size: 20px;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="message-box">しかく のなかに QRコードを うつしてね</div>
+    
+    <div id="video-container">
+        <div id="loading">カメラを じゅんび中...</div>
+        <video id="video" playsinline></video>
+        <div id="scan-frame"></div>
+    </div>
+
+    <canvas id="canvas" style="display:none;"></canvas>
+
+    <script>
+        const video = document.getElementById('video');
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        const loading = document.getElementById('loading');
+        let isScanning = true;
+
+        // 背面カメラを起動する設定
+        navigator.mediaDevices.getUserMedia({ video: { facingMode: { exact: "environment" } } })
+            .then(function(stream) {
+                video.srcObject = stream;
+                video.setAttribute("playsinline", true); // iOS対策
+                video.play();
+                requestAnimationFrame(tick);
+            })
+            .catch(function(err) {
+                // 万が一「背面カメラ限定」でエラーが出た場合のフォールバック（PCや一部端末用）
+                navigator.mediaDevices.getUserMedia({ video: true })
+                    .then(function(stream) {
+                        video.srcObject = stream;
+                        video.play();
+                        requestAnimationFrame(tick);
+                    })
+                    .catch(function(e) {
+                        alert("カメラが見つからないか、許可されていません。設定を確認してください。");
+                    });
+            });
+
+        function tick() {
+            if (video.readyState === video.HAVE_ENOUGH_DATA && isScanning) {
+                loading.style.display = "none";
+                
+                // キャンバスのサイズをビデオに合わせる
+                canvas.height = video.videoHeight;
+                canvas.width = video.videoWidth;
+                
+                // ビデオの映像をキャンバスに描画
+                ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                
+                // 画像データを取得してQRコードを解析
+                const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                const code = jsQR(imageData.data, imageData.width, imageData.height, {
+                    inversionAttempts: "dontInvert",
+                });
+
+                if (code) {
+                    // QRコードを検出した場合
+                    isScanning = false; // 二重読み込み防止のためにスキャンを停止
+                    
+                    // 成功のフィードバック（スマホを短く振動させる ※Android等で有効）
+                    if (navigator.vibrate) {
+                        navigator.vibrate(200);
+                    }
+
+                    // 読み取ったURLへ自動ジャンプ
+                    if (code.data.startsWith("http://") || code.data.startsWith("https://")) {
+                        window.location.href = code.data;
+                    } else {
+                        // URLではないテキストだった場合はアラート表示して再開
+                        alert("読み取った内容:\n" + code.data);
+                        setTimeout(() => { isScanning = true; }, 2000);
+                    }
+                    return;
+                }
+            }
+            requestAnimationFrame(tick);
+        }
+    </script>
+</body>
+</html>
