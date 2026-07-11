@@ -100,7 +100,7 @@
                     oscillator.type = 'sine'; // 耳に優しい丸い音
                     oscillator.frequency.value = freq;
                     
-                    gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime + startTime);
+                    gainNode.gain.setValueAtTime(1.0, audioCtx.currentTime + startTime);
                     gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + startTime + duration);
                     
                     oscillator.connect(gainNode);
