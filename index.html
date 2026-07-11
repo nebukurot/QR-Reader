@@ -78,73 +78,68 @@
 
     <canvas id="canvas" style="display:none;"></canvas>
 
-    <script>
-        const video = document.getElementById('video');
-        const canvas = document.getElementById('canvas');
-        const ctx = canvas.getContext('2d');
-        const loading = document.getElementById('loading');
-        let isScanning = true;
+<script>
+    const video = document.getElementById('video');
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    const loading = document.getElementById('loading');
+    let isScanning = true;
 
-        // 背面カメラを起動する設定
-        navigator.mediaDevices.getUserMedia({ video: { facingMode: { exact: "environment" } } })
-            .then(function(stream) {
-                video.srcObject = stream;
-                video.setAttribute("playsinline", true); // iOS対策
-                video.play();
-                requestAnimationFrame(tick);
-            })
-            .catch(function(err) {
-                // 万が一「背面カメラ限定」でエラーが出た場合のフォールバック（PCや一部端末用）
-                navigator.mediaDevices.getUserMedia({ video: true })
-                    .then(function(stream) {
-                        video.srcObject = stream;
-                        video.play();
-                        requestAnimationFrame(tick);
-                    })
-                    .catch(function(e) {
-                        alert("カメラが見つからないか、許可されていません。設定を確認してください。");
-                    });
+    // カメラの起動設定（より柔軟な指定に変更しました）
+    const constraints = {
+        video: {
+            // 基本は背面カメラを最優先する（強要はしない設定に変更）
+            facingMode: "environment",
+            // スマホでピントが合いやすいように解像度の目安を指定
+            width: { ideal: 1280 },
+            height: { ideal: 720 }
+        }
+    };
+
+    navigator.mediaDevices.getUserMedia(constraints)
+        .then(function(stream) {
+            video.srcObject = stream;
+            video.setAttribute("playsinline", true); // iOS（Safari）対策
+            video.play();
+            requestAnimationFrame(tick);
+        })
+        .catch(function(err) {
+            console.error("カメラ起動エラー: ", err);
+            // エラー時の案内を、高齢者の方でも分かりやすい言葉にしました
+            alert("カメラがうごきませんでした。\n「カメラの利用を許可（きょか）」するか、画面をもう一度開きなおしてみてください。");
+        });
+
+    function tick() {
+        if (video.readyState === video.HAVE_ENOUGH_DATA && isScanning) {
+            loading.style.display = "none";
+            
+            canvas.height = video.videoHeight;
+            canvas.width = video.videoWidth;
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+            
+            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            const code = jsQR(imageData.data, imageData.width, imageData.height, {
+                inversionAttempts: "dontInvert",
             });
 
-        function tick() {
-            if (video.readyState === video.HAVE_ENOUGH_DATA && isScanning) {
-                loading.style.display = "none";
+            if (code) {
+                isScanning = false; 
                 
-                // キャンバスのサイズをビデオに合わせる
-                canvas.height = video.videoHeight;
-                canvas.width = video.videoWidth;
-                
-                // ビデオの映像をキャンバスに描画
-                ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-                
-                // 画像データを取得してQRコードを解析
-                const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-                const code = jsQR(imageData.data, imageData.width, imageData.height, {
-                    inversionAttempts: "dontInvert",
-                });
-
-                if (code) {
-                    // QRコードを検出した場合
-                    isScanning = false; // 二重読み込み防止のためにスキャンを停止
-                    
-                    // 成功のフィードバック（スマホを短く振動させる ※Android等で有効）
-                    if (navigator.vibrate) {
-                        navigator.vibrate(200);
-                    }
-
-                    // 読み取ったURLへ自動ジャンプ
-                    if (code.data.startsWith("http://") || code.data.startsWith("https://")) {
-                        window.location.href = code.data;
-                    } else {
-                        // URLではないテキストだった場合はアラート表示して再開
-                        alert("読み取った内容:\n" + code.data);
-                        setTimeout(() => { isScanning = true; }, 2000);
-                    }
-                    return;
+                if (navigator.vibrate) {
+                    navigator.vibrate(200);
                 }
+
+                if (code.data.startsWith("http://") || code.data.startsWith("https://")) {
+                    window.location.href = code.data;
+                } else {
+                    alert("読み取った内容:\n" + code.data);
+                    setTimeout(() => { isScanning = true; }, 2000);
+                }
+                return;
             }
-            requestAnimationFrame(tick);
         }
-    </script>
+        requestAnimationFrame(tick);
+    }
+</script>    
 </body>
 </html>
