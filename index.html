@@ -114,7 +114,7 @@
                 playNote(880, 0, 0.1);    
                 playNote(1046.5, 0.15, 0.15); 
             } catch(e) {
-                console.log("音が鳴らせませんでした", e);
+                console.log("音を鳴らせませんでした", e);
             }
         }
 
@@ -134,7 +134,7 @@
                 requestAnimationFrame(tick);
             })
             .catch(function(err) {
-                alert("カメラがうごきませんでした。\n「カメラの利用を許可（きょか）」するか、画面をもう一度開きなおしてみてください。");
+                alert("カメラが動きませんでした。\n「カメラの利用を許可」するか、画面をもう一度開きなおしてみてください。");
             });
 
         function tick() {
